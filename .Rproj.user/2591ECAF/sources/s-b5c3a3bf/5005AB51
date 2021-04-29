@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1619701639742.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "5005AB51",
+    "lastKnownWriteTime" : 1619706334,
+    "last_content_update" : 1619708611196,
+    "path" : "~/Dropbox/git_github_note.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "47,0",
+        "scrollLine" : "28"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

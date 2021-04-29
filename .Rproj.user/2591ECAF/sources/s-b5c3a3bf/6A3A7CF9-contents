@@ -1,0 +1,296 @@
+setwd("~/Server/CNGS/TCGA/LUAD_20200909/")
+library(data.table)
+library(parallel)
+library(GBJ)
+library(GenomicRanges)
+load("df_exp_luad.rda")
+load("df_met_luad.rda")
+load("LUAD_clin_detailed.rda")
+load("LUAD_sample_type.Rdata")
+
+cgid=readRDS("HM450.hg38.manifest.gencode.v22.rds")
+cgst=data.table(cg=names(cgid),enst=cgid$transcriptIDs)
+cgst=rbindlist(apply(cgst,1,function(ss){
+  return(data.table(cg=ss[1],enst=substr(strsplit(ss[2],";")[[1]],1,15)))
+}))
+tgid=read.delim("gid_grch38_20200910.txt",stringsAsFactors = F)
+cgst$ensg=tgid[match(cgst$enst,tgid$Transcript.stable.ID),]$Gene.stable.ID
+
+clin=LUAD_clin_detailed[[1]][,c("bcr_patient_barcode","race","gender","tobacco_smoking_history_indicator",
+                                "tobacco_smoking_pack_years_smoked","age_at_initial_pathologic_diagnosis",
+                                "ajcc_pathologic_tumor_stage","radiation_treatment_adjuvant")]
+colnames(clin)=c("nid","race","sex","smoke","smoke_py","age","tumor_stage","radiation")
+clin$age=as.numeric(clin$age)
+clin$smoke=as.numeric(clin$smoke)
+clin$smoke_py=as.numeric(clin$smoke_py)
+clin$race=ifelse(clin$race=="WHITE","white","nonwhite")
+clin$tumor_stage[clin$tumor_stage%in%c("Stage I","Stage IA","Stage IB")]=1
+clin$tumor_stage[clin$tumor_stage%in%c("Stage II","Stage IIA","Stage IIB")]=2
+clin$tumor_stage[clin$tumor_stage%in%c("Stage IIIA","Stage IIIB","Stage IV")]=3
+clin$tumor_stage=as.numeric(clin$tumor_stage)
+clin$radiation[!clin$radiation%in%c("NO","YES")]="NA"
+
+clin=clin[!is.na(clin$age)&!is.na(clin$smoke)&!is.na(clin$sex)&!is.na(clin$race)&!is.na(clin$tumor_stage)&!is.na(clin$radiation),] ## 458 > 421
+clin$smoke=ifelse(clin$smoke==1,0,1)
+exp=subset(exp_luad_sample_type,sample_type=="Primary Tumor")
+met=subset(met_luad_sample_type,sample_type=="Primary Tumor")
+iid=intersect(clin$nid,intersect(exp$cases.submitter_id,met$cases.submitter_id)) ## 421 > 416
+clin=clin[match(iid,clin$nid),]
+exp=exp[match(iid,exp$cases.submitter_id),]
+met=met[match(iid,met$cases.submitter_id),]
+exp_select=exp_luad[,colnames(exp_luad)%in%exp$cases] ## select data from primary tumor
+met_select=met_luad[,colnames(met_luad)%in%met$cases]
+colnames(exp_select)=substr(colnames(exp_select),1,12)
+colnames(met_select)=substr(colnames(met_select),1,12)
+exp_select=exp_select[,iid]
+met_select=met_select[,iid]
+dim(exp_select)
+dim(met_select)
+exp_select_frq=apply(exp_select,1,function(e){ return(sum(e==0)/length(e)) })
+met_select_frq=apply(met_select,1,function(e){ return(sum(is.na(e))/length(e)) })
+exp_select=as.data.table(log(exp_select[exp_select_frq<0.2,]+1),keep.rownames = "ensg")
+met_select=as.data.table(met_select[complete.cases(met_select),],keep.rownames = "cg")
+
+print(paste0("check id mapping: ",iid==colnames(exp_select)[-1]&&iid==colnames(met_select)[-1]&&iid==clin$nid))
+save(iid,cgst,clin,exp_select,met_select,file="LUAD_processed4.RData")
+
+S=clin$smoke
+X=data.frame(sex=as.factor(clin$sex),age=as.numeric(clin$age),race=as.factor(clin$race),
+             tumor_stage=as.numeric(clin$tumor_stage),radiation=as.factor(clin$radiation))
+Y=unlist(apply(exp_select[,-"ensg"],1,list),recursive = F)
+M=mclapply(exp_select$ensg,function(gg){
+  tb=cgst[cgst$ensg==gg,]
+  mq=met_select[met_select$cg%in%tb$cg,]
+  rr=t(mq[,-"cg"])
+  colnames(rr)=mq$cg
+  return(rr)
+},mc.cores = 20)
+names(Y)=names(M)=exp_select$ensg
+
+save(S,M,Y,X,file="LUAD_togoo.RData")
+
+mi=sapply(M,ncol)
+Y=Y[mi>1]
+M=M[mi>1]
+M=sapply(M,function(m){ return(log2((m+1)/(1-m+1))) })
+save(S,M,Y,X,mi,file="LUAD_togo4.RData")
+
+# number of mediators >>n/10 (toward only VCT analysis)
+
+source("~/Dropbox/YT_Lab/CNGS/CNGS_functions.R")
+load("~/Server/CNGS/TCGA/LUAD_20200909/LUAD_togo4.RData")
+prec=1e-3
+mc=30
+
+t0=Sys.time()
+PS=pre_stat(S,M,Y,X,mc) # estimate raw alpha, beta, sign
+t1=Sys.time()
+VCTg=GCN_VCT(S,M,Y,X,PS=PS,mc)
+t2=Sys.time()
+TSQg=GCN(PS,"TSQ",mc)
+t3=Sys.time()
+GBJg=GCN(PS,"GBJ",mc)
+t4=Sys.time()
+GHCg=GCN(PS,"GHC",mc)
+t5=Sys.time()
+mnPg=GCN(PS,"minP",mc)
+t6=Sys.time()
+
+print(paste0("Prefitting: ",round(difftime(t1,t0,units = "sec"),2),"s")) #40s
+print(paste0("VCT: ",round(difftime(t2,t1,units = "mins"),2),"m"))       #20m
+print(paste0("TSQ: ",round(difftime(t3,t2,units = "sec"),2),"s"))        #20s
+print(paste0("GBJ: ",round(difftime(t4,t3,units = "mins"),2),"m"))       #10m
+print(paste0("GHC: ",round(difftime(t5,t4,units = "mins"),2),"m"))       #20m
+print(paste0("MnP: ",round(difftime(t6,t5,units = "sec"),2),"s"))        #20s
+
+t0=Sys.time()
+CSp=cn_stat(PS,trans=T,mc) # upgrade into composite null alpha and beta
+t1=Sys.time()
+BJp=LCN(CSp,"BJ",mc)
+t2=Sys.time()
+HCp=LCN(CSp,"HC",mc)
+t3=Sys.time()
+MPp=LCN(CSp,"minP",mc)
+t4=Sys.time()
+CSm=cn_stat(PS,trans=F,mc)
+t5=Sys.time()
+BJm=LCN(CSm,"BJ",mc)
+t6=Sys.time()
+HCm=LCN(CSm,"HC",mc)
+t7=Sys.time()
+MPm=LCN(CSm,"minP",mc)
+t8=Sys.time()
+
+print(paste0("CompNull: ",round(difftime(t1,t0,units = "mins"),2),"m")) #2m
+print(paste0("BJ: ",round(difftime(t2,t1,units = "sec"),2),"s"))        #6s
+print(paste0("HC: ",round(difftime(t3,t2,units = "sec"),2),"s"))        #6s
+print(paste0("MP: ",round(difftime(t4,t3,units = "sec"),2),"s"))        #4s
+print(paste0("CompNull: ",round(difftime(t5,t4,units = "mins"),2),"m")) #2m
+print(paste0("BJ: ",round(difftime(t6,t5,units = "sec"),2),"s"))        #6s
+print(paste0("HC: ",round(difftime(t7,t6,units = "sec"),2),"s"))        #6s
+print(paste0("MP: ",round(difftime(t8,t7,units = "sec"),2),"s"))        #4s
+
+
+PV=data.table(BJpc=BJp$Pcn,BJpj=BJp$Pjs,BJps=BJp$Psb,
+              BJmc=BJm$Pcn,BJmj=BJm$Pjs,BJms=BJm$Psb,
+              HCpc=HCp$Pcn,HCpj=HCp$Pjs,HCps=HCp$Psb,
+              HCmc=HCm$Pcn,HCmj=HCm$Pjs,HCms=HCm$Psb,
+              MPpc=MPp$Pcn,MPpj=MPp$Pjs,MPps=MPp$Psb,
+              MPmc=MPm$Pcn,MPmj=MPm$Pjs,MPms=MPm$Psb,
+              VCTmc=VCTg$Pcn,VCTmj=VCTg$Pjs,VCTms=VCTg$Psb,
+              TSQmc=TSQg$Pcn,TSQmj=TSQg$Pjs,TSQms=TSQg$Psb,
+              GBJmc=GBJg$Pcn,GBJmj=GBJg$Pjs,GBJms=GBJg$Psb,
+              GHCmc=GHCg$Pcn,GHCmj=GHCg$Pjs,GHCms=GHCg$Psb,
+              mnPmc=mnPg$Pcn,mnPmj=mnPg$Pjs,mnPms=mnPg$Psb)
+
+save(PS,CSm,CSp,PV,BJp,BJm,HCp,HCm,MPp,MPm,VCTg,TSQg,GBJg,GHCg,mnPg,mi,file="R6.RData")
+
+
+source("~/Dropbox/YT_Lab/CNGS/CNGS_functions.R")
+load("R6_fix.RData")
+library(ggplot2)
+library(data.table)
+library(latex2exp)
+library(RColorBrewer)
+
+mii=mi[mi>1]
+g1=(mii<=40)
+g11=(mii>10&mii<=40)
+g2=(mii>40&mii<=410)
+g3=(mii>410)
+PV$TSQmc[g2|g3]=NA
+PV$TSQmj[g2|g3]=NA
+PV$TSQms[g2|g3]=NA
+# 
+# pxy=apply(PV,2,function(pv){
+#   pv=pv[order(pv)]
+#   return(data.table(x=-log10((1:length(pv))/length(pv)),y=-log10(pv)))
+# })
+# mmm=rbindlist(pxy,idcol = names(pxy))
+# names(mmm)=c("stat","x","y")
+# mmm$mm=gsub("pc|ps|pj|ms|mc|mj","",mmm$stat)
+# mmm$pv=sapply(as.character(mmm$stat),function(s){ return(substr(s,nchar(s),nchar(s))) })
+# mqq=mmm[!is.na(mmm$y)&!mmm$stat%in%c("BJmc","HCmc","MPmc","BJmj","HCmj","MPmj","BJms","HCms","MPms"),]
+# mqq$pv=factor(mqq$pv,levels = c("c","j","s"),labels = c("Composite Test","Joint Significance","Normality-based (Sobel)"))
+# mqq$app=ifelse(mqq$mm%in%c("BJ","HC","MP"),"local approach","global approach")
+# mqq$mm=factor(mqq$mm,levels = c("BJ","HC","MP","VCT","TSQ","GBJ","GHC","mnP"),
+#               labels = c("BJ (L)","HC (L)","minP (L)","VCT (G)","TSQ (G)","GBJ (G)","GHC (G)","minP (G)"))
+# ggplot(mqq)+geom_point(aes(x=x,y=y,colour=mm,shape=factor(app)),size=.5)+geom_abline(slope = 1)+
+#   scale_color_manual(values=c(brewer.pal(5, "Set2"),brewer.pal(3, "Set2")))+
+#   guides(col = guide_legend(ncol = 5, byrow = TRUE, reverse = T))+theme(legend.position="top",legend.title = element_blank())+
+#   facet_grid(.~pv)+xlab("Expected -log(p-value)")+ylab(TeX("Observed -log(p-value)"))
+# ggsave("dtqq4.png",width = 8,height = 4)
+
+s1=BJp$ensg[!is.na(p.adjust(BJp$Pcn,method = "fdr"))&p.adjust(BJp$Pcn,method = "fdr")<0.05]
+s2=HCp$ensg[!is.na(p.adjust(HCp$Pcn,method = "fdr"))&p.adjust(HCp$Pcn,method = "fdr")<0.05]
+s3=MPp$ensg[!is.na(p.adjust(MPp$Pcn,method = "fdr"))&p.adjust(MPp$Pcn,method = "fdr")<0.05]
+s4=VCTg$ensg[!is.na(p.adjust(VCTg$Pcn,method = "fdr"))&p.adjust(VCTg$Pcn,method = "fdr")<0.05]
+s5=TSQg$ensg[!is.na(p.adjust(TSQg$Pcn,method = "fdr"))&p.adjust(TSQg$Pcn,method = "fdr")<0.05]
+s6=GBJg$ensg[!is.na(p.adjust(GBJg$Pcn,method = "fdr"))&p.adjust(GBJg$Pcn,method = "fdr")<0.05]
+s7=GHCg$ensg[!is.na(p.adjust(GHCg$Pcn,method = "fdr"))&p.adjust(GHCg$Pcn,method = "fdr")<0.05]
+s8=mnPg$ensg[!is.na(p.adjust(mnPg$Pcn,method = "fdr"))&p.adjust(mnPg$Pcn,method = "fdr")<0.05]
+
+length(intersect(unique(c(s1)),names(g1[which(g1)])))
+length(intersect(unique(c(s2)),names(g1[which(g1)])))
+length(intersect(unique(c(s3)),names(g1[which(g1)])))
+length(intersect(unique(c(s1)),names(g2[which(g2)])))
+length(intersect(unique(c(s2)),names(g2[which(g2)])))
+length(intersect(unique(c(s3)),names(g2[which(g2)])))
+length(intersect(unique(c(s1,s2,s3)),names(g1[which(g1)])))
+length(intersect(unique(c(s1,s2,s3)),names(g2[which(g2)])))
+
+length(intersect(unique(c(s4)),names(g1[which(g1)])))
+length(intersect(unique(c(s5)),names(g1[which(g1)])))
+length(intersect(unique(c(s6)),names(g1[which(g1)])))
+length(intersect(unique(c(s7)),names(g1[which(g1)])))
+length(intersect(unique(c(s8)),names(g1[which(g1)])))
+length(intersect(unique(c(s4)),names(g2[which(g2)])))
+length(intersect(unique(c(s5)),names(g2[which(g2)])))
+length(intersect(unique(c(s6)),names(g2[which(g2)])))
+length(intersect(unique(c(s7)),names(g2[which(g2)])))
+length(intersect(unique(c(s8)),names(g2[which(g2)])))
+length(intersect(unique(c(s4,s5,s6,s7,s8)),names(g1[which(g1)])))
+length(intersect(unique(c(s4,s6,s7,s8)),names(g2[which(g2)])))
+
+length(intersect(unique(c(s1,s2,s3,s4,s5,s6,s7,s8)),names(g1[which(g1)])))
+length(intersect(unique(c(s1,s2,s3,s4,s6,s7,s8)),names(g2[which(g2)])))
+
+### network analysis
+load("~/Server/CNGS/TCGA/LUAD_20200909/LUAD_togo4.RData")
+load("gid.RData")
+
+rpv=function(rr,df){
+  pv=pt(rr*sqrt(df/(1-rr^2)),df,lower.tail = F)
+  return(2*apply(cbind(pv,1-pv),1,min))
+}
+sgset=c(intersect(unique(c(s1,s2,s3,s4,s5,s6,s7,s8)),names(g1[which(g1)])),
+        intersect(unique(c(s1,s2,s3,s4,s6,s7,s8)),names(g2[which(g2)])))
+length(sgset) #3510
+
+Ys=do.call(cbind,Y[sgset])
+cY=cor(Ys)
+cP=data.frame(row=rownames(cY)[row(cY)[upper.tri(cY)]], 
+           col=colnames(cY)[col(cY)[upper.tri(cY)]], 
+           corr=abs(cY[upper.tri(cY)]),stringsAsFactors = F)
+cP$pv=rpv(cP$corr,nrow(Ys))
+cP$fdr=p.adjust(cP$pv,method = "fdr")
+cP$row_gn=gid$HGNC.symbol[match(cP$row,gid$Gene.stable.ID)]
+cP$col_gn=gid$HGNC.symbol[match(cP$col,gid$Gene.stable.ID)]
+ccP=cP[cP$corr>0.7&!is.na(cP$row_gn)&!is.na(cP$col_gn)&cP$row_gn!=""&cP$col_gn!="",]
+
+library(igraph)
+cG=graph_from_data_frame(ccP, directed = F)
+c1=cluster_fast_greedy(cG,weights = edge_attr(cG)$corr)
+c2=cluster_louvain(cG,weights = edge_attr(cG)$corr)
+plot(c2, cG, vertex.label = NA, vertex.size=3, edge.width = edge_attr(cG)$corr)
+vertex_attr(cG,"cluster")=c2$membership
+cG2=induced_subgraph(cG, which(c2$membership%in%which(table(c2$membership)>5)))
+c22=cluster_louvain(cG2)
+c22$membership=c2$membership[match(c22$names,c2$names)]
+length(V(cG2)$name)
+write(V(cG2)$name,file = "intoSTRING.txt") #396
+
+stg=read.delim("string_interactions.tsv")
+cS=graph_from_data_frame(stg[stg$combined_score>=0.4,c(1,2,9)], directed = F)
+c3=cluster_louvain(cS,weights = edge_attr(cS)$combined_score)
+plot(c3, cS, vertex.label = NA, vertex.size=3, edge.width = edge_attr(cS)$combined_score)
+vertex_attr(cS,"cluster")=c3$membership
+cS3=induced_subgraph(cS, which(c3$membership%in%which(table(c3$membership)>7)))
+c33=cluster_louvain(cS3)
+c33$membership=c3$membership[match(c33$names,c3$names)]
+pdf(file = "LUAD_cluster.pdf",width = 8,height = 8)
+par(mgp=c(2.2,0.45,0), tcl=-0.4, mar=c(1,1,1,1))
+plot(c33, cS3, col="white", vertex.label.cex=.8, vertex.label.dist=.8, vertex.size=2, vertex.label.color="black", mark.border="black",
+    edge.width = edge_attr(cS)$combined_score, mark.col=c(brewer.pal(n = 6, name = "Set3"),"gray"))
+dev.off()
+
+an=read.delim("enrichment.NetworkNeighborAL.tsv")
+an=an[order(an$strength,decreasing = T),c(1,2,5,6)]
+apply(an,1,function(a){
+  cat(paste0(a,collapse = "&"))
+  cat("\\\\")
+  cat("\n")
+})
+
+library(T2GA)
+PVV=PV
+PVV[ ,ensg := names(mi[mi>1])]
+PVV[ ,uniprot := gid[match(names(mi[mi>1]),gid$Gene.stable.ID),]$UniProtKB.Swiss.Prot.ID]
+PVV[ ,lmin:= apply(PV[,c(1:3,7:9,13:15)],1,min)]
+PVV[ ,gmin:= apply(PV[,c(19:33)],1,min)]
+
+YY=data.frame(ensg=colnames(Ys),exp=log(apply(Ys,2,mean)),id=gid$UniProtKB.Swiss.Prot.ID[match(colnames(Ys),gid$Gene.stable.ID)])
+YY=YY[YY$id!=""&!is.na(YY$id),]
+dat1=importdata()
+res1=computeT2(YY[YY$ensg%in%c22$names,c(3,2)])
+
+#https://version-11-0b.string-db.org/cgi/network?networkId=bIXqpVLr9fkt
+
+dat1=importdata(PVV[ensg%in%c22$names&uniprot!=""&!is.na(uniprot),c("uniprot","gmin")],typ = "pv")
+res1=computeT2(dat1)
+res1=computeT2(dat1,intg = F)
+res1=data.table(res1)
+res11=computeT2(dat1,pathDB = "Reactome")
+dat2=importdata(PVV[ensg%in%lu&uniprot!=""&!is.na(uniprot),c("uniprot","lmin")],typ = "pv")
+res2=computeT2(dat2)
+res22=computeT2(dat2,pathDB = "Reactome")

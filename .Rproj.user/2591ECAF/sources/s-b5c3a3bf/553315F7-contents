@@ -1,0 +1,84 @@
+source("~/Dropbox/YT_Lab/CNGS/CNGS_functions.R")
+RNGkind("L'Ecuyer-CMRG")
+
+np=2000
+n=1000
+mi=rep(100,np)
+rh=0
+mc=30
+har=0.2
+#pdf=produce_pdf(upb=80,B=80000)
+prec=1e-3
+
+hypo=c("HA")#c("H00","G0A","G0B") # "H00","HA", 
+
+setwd(paste0("~/Server/CNGS/m",mi[1],"_n",n,"_HA",har*100))
+
+for(i in hypo){
+  if(i%in%c("H00","G0A","G0B")){
+    mm=mmd=vv=vvd=sm=smd=0
+  }else{
+    mmd=c(0,0.1)
+    vvd=c(0,0.1) ##m=30 setting, HA
+    smd=seq(2,20,by = 2)
+    # mmd=0
+    # vvd=0.05 ##m=30 setting, H02
+    # smd=2
+  }
+  for(mm in mmd){
+  for(vv in vvd){
+    if(mm==0&vv==0) next
+    for(sm in smd){
+      for(e in 1:10){
+      if(file.exists(paste0(i,"_rho",rh,"_sm",sm,"_mm",mm,"_vv",vv,"_e",e,".RData"))) next
+      print(paste0("[",i,"] rho=",rh," / sm=",sm," / rnorm(mu=",mm,",sd=",vv,") / np=",np," / n=",n," / mean(m)=",mean(mi)," / e=",e))
+
+X=as.data.frame(sapply(1:2,function(x){ return(rnorm(n)) }))
+S=rnorm(n)      
+D=mclapply(mi,function(m){
+  if(i%in%c("G0A","G0B")&runif(1)<har){ vv=0.05;sm=5 }
+  if(i%in%c("HA","H02")&runif(1)>har){ sm=0 }
+  pm=para(i,sm,mm,vv,m)
+  alpha=pm$a
+  beta=pm$b
+  SS=matrix(rh,nrow=m,ncol=m)
+  diag(SS)=1
+  M=sapply(1:m,function(x){ return(S*alpha[x])+apply(X,1,sum)} )+mvrnorm(n=n,mu=rep(0,m),Sigma=SS)
+  Y=apply(X,1,sum)+S+M%*%beta+rnorm(n)
+  return(list(M=M,Y=Y))
+}, mc.cores = mc, mc.set.seed = T)
+M=lapply(D,function(d){ return(d$M) })
+Y=lapply(D,function(d){ return(d$Y) })
+
+PS=pre_stat(S,M,Y,X,mc) # estimate raw alpha, beta, sign, for both M and P version
+VCTg=GCN_VCT(S,M,Y,X,PS,mc)
+TSQg=GCN(PS,"TSQ",mc)
+GBJg=GCN(PS,"GBJ",mc)
+GHCg=GCN(PS,"GHC",mc)
+mnPg=GCN(PS,"minP",mc)
+
+CSp=cn_stat(PS,trans = T,mc) # estimate Z and cov(Z) from alpha and beta
+BJp=LCN(CSp,"BJ",mc)
+HCp=LCN(CSp,"HC",mc)
+MPp=LCN(CSp,"minP",mc)
+CSm=cn_stat(PS,trans = F,mc) 
+BJm=LCN(CSm,"BJ",mc)
+HCm=LCN(CSm,"HC",mc)
+MPm=LCN(CSm,"minP",mc)
+
+PV=data.table(BJpc=BJp$Pcn,BJpj=BJp$Pjs,BJps=BJp$Psb,
+              BJmc=BJm$Pcn,BJmj=BJm$Pjs,BJms=BJm$Psb,
+              HCpc=HCp$Pcn,HCpj=HCp$Pjs,HCps=HCp$Psb,
+              HCmc=HCm$Pcn,HCmj=HCm$Pjs,HCms=HCm$Psb,
+              MPpc=MPp$Pcn,MPpj=MPp$Pjs,MPps=MPp$Psb,
+              MPmc=MPm$Pcn,MPmj=MPm$Pjs,MPms=MPm$Psb,
+              VCTmc=VCTg$Pcn,VCTmj=VCTg$Pjs,VCTms=VCTg$Psb,
+              TSQmc=TSQg$Pcn,TSQmj=TSQg$Pjs,TSQms=TSQg$Psb,
+              GBJmc=GBJg$Pcn,GBJmj=GBJg$Pjs,GBJms=GBJg$Psb,
+              GHCmc=GHCg$Pcn,GHCmj=GHCg$Pjs,GHCms=GHCg$Psb,
+              mnPmc=mnPg$Pcn,mnPmj=mnPg$Pjs,mnPms=mnPg$Psb)
+
+save(PV,file=paste0(i,"_rho",rh,"_sm",sm,"_mm",mm,"_vv",vv,"_e",e,".RData"))
+rm(X,S,D,M,Y,PS,CSm,CSp,PV,BJp,BJm,HCp,HCm,MPp,MPm,VCTg,TSQg,GBJg,GHCg,mnPg)
+gc()
+}}}}}
