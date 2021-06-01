@@ -1,7 +1,7 @@
 pre_fit=function(S,M,Y,X){
   if(anyNA(X)){
     print("warning: missing covariate data")
-    X<-matrix(rep(1, length(S)))
+    X=matrix(rep(1, length(Y)))
   }
 
   fit.m<-lm(M~X+S)
