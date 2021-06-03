@@ -3,8 +3,14 @@ pre_fit=function(S,M,Y,X){
     print("warning: missing covariate data")
     X=matrix(rep(1, length(Y)))
   }
+  if(length(Y)==length(M)){
+    fit.m=lm(M~X+S)
+  }else if(length(Y)==length(S)){
+    fit.m=glm(S~M+X)
+  }else{
+    return(print("Data format error, Y is either a list of equal length of M, or a vector of equal length of S.") )
+  }
 
-  fit.m<-lm(M~X+S)
   if(all(Y %in% 0:1)){
     fit.y<-glm(Y~X+S+M, family="binomial")
   }else{
