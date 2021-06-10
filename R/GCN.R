@@ -18,20 +18,20 @@
 
 ## method=c("TSQ","GBJ","GHC","minP")
 GCN=function(PS,method="minP",mc=5,prec=1e-3){
-  GS=mclapply(PS,function(ps){
+  GS=parallel::mclapply(PS,function(ps){
     if(is.na(ps$M_hat)){ return(list(pa=NA,pb=NA,za=NA,zb=NA)) }
     if(method=="TSQ"){
       pa=TSQ(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$pv
       pb=TSQ(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$pv
     }else if(method=="GBJ"){
-      pa=GBJ(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GBJ_pvalue
-      pb=GBJ(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GBJ_pvalue
+      pa=GBJ::GBJ(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GBJ_pvalue
+      pb=GBJ::GBJ(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GBJ_pvalue
     }else if(method=="GHC"){
-      pa=GHC(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GHC_pvalue
-      pb=GHC(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GHC_pvalue
+      pa=GBJ::GHC(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GHC_pvalue
+      pb=GBJ::GHC(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GHC_pvalue
     }else{
-      pa=minP(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$minP_pvalue
-      pb=minP(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$minP_pvalue
+      pa=GBJ::minP(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$minP_pvalue
+      pb=GBJ::minP(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$minP_pvalue
     }
     return(list(pa=pa,pb=pb,za=safe_z(pa)*ps$signAB$as,zb=safe_z(pb)*ps$signAB$bs))
   },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)

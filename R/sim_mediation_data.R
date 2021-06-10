@@ -31,14 +31,14 @@ sim_mediation_data=function(hypo="H00",sample_size=300,num_mediators=30,num_mech
   X=sapply(1:num_covariates,function(x){ return(rnorm(sample_size)) })
   S=rnorm(sample_size)
   mi=rep(num_mediators,num_mechanisms)
-  D=mclapply(mi,function(m){
+  D=parallel::mclapply(mi,function(m){
     if(!hypo%in%c("H00")&runif(1)>har){ sm=0 }
     pm=para(hypo,sm,mm,vv,m)
     alpha=pm$a
     beta=pm$b
     SS=matrix(rho,nrow=m,ncol=m)
     diag(SS)=1
-    M=sapply(1:m,function(x){ return(S*alpha[x])+apply(X,1,sum)} )+mvrnorm(n=sample_size,mu=rep(0,m),Sigma=SS)
+    M=sapply(1:m,function(x){ return(S*alpha[x])+apply(X,1,sum)} )+MASS::mvrnorm(n=sample_size,mu=rep(0,m),Sigma=SS)
     Y=apply(X,1,sum)+S+M%*%beta+rnorm(sample_size)
     return(list(M=M,Y=Y))
   }, mc.cores = mc, mc.set.seed = T)

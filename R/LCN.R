@@ -5,6 +5,7 @@
 #' @param mc Number of cores for parallel computing, default=5.
 #' @importFrom parallel mclapply
 #' @import GBJ
+#' @import data.table
 #' @export
 #' @examples
 #' HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
@@ -19,31 +20,31 @@
 #' MPm=LCN(CSm,"minP")
 
 LCN=function(CS,method="minP",mc=5){
-  LS=mclapply(CS,function(cs){
+  LS=parallel::mclapply(CS,function(cs){
     Zcn=cs$Mcn; Zsb=cs$Msb; Zjs=cs$Mjs; SS=round(cs$MR,digits = 2)
     if(method=="BJ"){
       if(is.na(Zcn)){
         return(list(BJcn=NA,Pcn=NA,BJsb=NA,Psb=NA,BJjs=NA,Pjs=NA)) }
-      cn=BJ(Zcn,SS); pc=cn$BJ_pvalue; zc=cn$BJ
-      sb=BJ(Zsb,SS); ps=sb$BJ_pvalue; zs=sb$BJ
-      js=BJ(Zjs,SS); pj=js$BJ_pvalue; zj=js$BJ
+      cn=GBJ::BJ(Zcn,SS); pc=cn$BJ_pvalue; zc=cn$BJ
+      sb=GBJ::BJ(Zsb,SS); ps=sb$BJ_pvalue; zs=sb$BJ
+      js=GBJ::BJ(Zjs,SS); pj=js$BJ_pvalue; zj=js$BJ
       return(list(BJcn=zc,Pcn=pc,BJsb=zs,Psb=ps,BJjs=zj,Pjs=pj))
     }else if(method=="HC"){
       if(is.na(Zcn)){
         return(list(HCcn=NA,Pcn=NA,HCsb=NA,Psb=NA,HCjs=NA,Pjs=NA)) }
-      cn=HC(Zcn,SS); pc=cn$HC_pvalue; zc=cn$HC
-      sb=HC(Zsb,SS); ps=sb$HC_pvalue; zs=sb$HC
-      js=HC(Zjs,SS); pj=js$HC_pvalue; zj=js$HC
+      cn=GBJ::HC(Zcn,SS); pc=cn$HC_pvalue; zc=cn$HC
+      sb=GBJ::HC(Zsb,SS); ps=sb$HC_pvalue; zs=sb$HC
+      js=GBJ::HC(Zjs,SS); pj=js$HC_pvalue; zj=js$HC
       return(list(HCcn=zc,Pcn=pc,HCsb=zs,Psb=ps,HCjs=zj,Pjs=pj))
     }else{
       if(is.na(Zcn)){
         return(list(MPcn=NA,Pcn=NA,MPsb=NA,Psb=NA,MPjs=NA,Pjs=NA)) }
-      cn=minP(Zcn,SS); pc=cn$minP_pvalue; zc=cn$minP
-      sb=minP(Zsb,SS); ps=sb$minP_pvalue; zs=sb$minP
-      js=minP(Zjs,SS); pj=js$minP_pvalue; zj=js$minP
+      cn=GBJ::minP(Zcn,SS); pc=cn$minP_pvalue; zc=cn$minP
+      sb=GBJ::minP(Zsb,SS); ps=sb$minP_pvalue; zs=sb$minP
+      js=GBJ::minP(Zjs,SS); pj=js$minP_pvalue; zj=js$minP
       return(list(MPcn=zc,Pcn=pc,MPsb=zs,Psb=ps,MPjs=zj,Pjs=pj))
     }
   },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
   names(LS)=names(CS)
-  return(rbindlist(LS,idcol = "ensg"))
+  return(data.table::rbindlist(LS,idcol = "ensg"))
 }

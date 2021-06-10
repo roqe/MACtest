@@ -7,9 +7,9 @@ CompNull<-function(a, b, mc=5, prec=1e-3){
   upb=ceiling(max(ab))
   B=min(upb/prec,80000)
   pdf=produce_pdf(upb=upb,B=B)
-  pp0<-unlist(mclapply(ab,myp,upb,B,pdf,mc.cores = mc))
-  pp1<-unlist(mclapply(ab/sd(a),myp,upb,B,pdf,mc.cores = mc))
-  pp2<-unlist(mclapply(ab/sd(b),myp,upb,B,pdf,mc.cores = mc))
+  pp0<-sapply(ab,myp,upb,B,pdf)
+  pp1<-sapply(ab/sd(a),myp,upb,B,pdf)
+  pp2<-sapply(ab/sd(b),myp,upb,B,pdf)
   pp.comp<-pp1+pp2-pp0
   min_pp=min(pp.comp[pp.comp>0])
   pp.comp[pp.comp<=0]=min_pp
