@@ -6,12 +6,12 @@
 \usage{
 sim_mediation_data(
   hypo = "H00",
-  sample_size = 300,
+  sample_size = 1000,
   num_mediators = 30,
-  num_mechanisms = 2000,
+  num_mechanisms = 10000,
   num_covariates = 2,
-  rho = 0.3,
-  har = 0.2,
+  SS,
+  har = 0.1,
   mm = 0.1,
   vv = 0.1,
   sm = 5,
@@ -25,17 +25,17 @@ sim_mediation_data(
 "H02" refers to the cases with disjoint signals, if rho=0 then it is a null, otherwise alternative;
 "HA" refer to the alternative hypothesis with connected signals.}
 
-\item{sample_size}{Number of samples, default=300.}
+\item{sample_size}{Number of samples, default=1000.}
 
 \item{num_mediators}{Number of mediators, default=30.}
 
-\item{num_mechanisms}{Number of mechanisms, default=2000.}
+\item{num_mechanisms}{Number of mechanisms, default=10000.}
 
 \item{num_covariates}{Number of covariates, default=2.}
 
-\item{rho}{The correlation coefficients between the mediators, default=0.3.}
+\item{SS}{The correlation matrix between mediators.}
 
-\item{har}{The percentage of mechanisms with signals within one experiment, default=0.2. (affect when hypo is not "H00")}
+\item{har}{The percentage of mechanisms with signals within one experiment, default=0.1. (affect when hypo is not "H00")}
 
 \item{mm}{The mean of the signal, default=0.1. (affect when hypo is not "H00")}
 

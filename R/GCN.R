@@ -1,39 +1,30 @@
-#' Global approach: TSQ, GBJ, GHC, minP
-#'
-#' @param PS The pre-fitting results
-#' @param method Other approcahes beside VCT, here we provide "TSQ","GBJ","GHC", and "minP", default="minP".
-#' @param mc Number of cores for parallel computing, default=5.
-#' @param prec The unit to construct empirical normal product pdf using in composite test, default=1e-3.
-#' @importFrom parallel mclapply
-#' @import GBJ
-#' @import data.table
 #' @export
-#' @examples
-#' HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
-#' PS=pre_stat(HA$S,HA$M,HA$Y,HA$X)
-#' TSQg=GCN(PS,"TSQ")
-#' GBJg=GCN(PS,"GBJ")
-#' GHCg=GCN(PS,"GHC")
-#' mnPg=GCN(PS,"minP")
-
-## method=c("TSQ","GBJ","GHC","minP")
-GCN=function(PS,method="minP",mc=5,prec=1e-3){
-  GS=parallel::mclapply(PS,function(ps){
-    if(is.na(ps$M_hat)){ return(list(pa=NA,pb=NA,za=NA,zb=NA)) }
-    if(method=="TSQ"){
-      pa=TSQ(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$pv
-      pb=TSQ(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$pv
-    }else if(method=="GBJ"){
-      pa=GBJ::GBJ(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GBJ_pvalue
-      pb=GBJ::GBJ(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GBJ_pvalue
-    }else if(method=="GHC"){
-      pa=GBJ::GHC(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$GHC_pvalue
-      pb=GBJ::GHC(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$GHC_pvalue
-    }else{
-      pa=GBJ::minP(ps$M_hat$a,round(cov2cor(ps$M_hat$covA),digits = 2))$minP_pvalue
-      pb=GBJ::minP(ps$M_hat$b,round(cov2cor(ps$M_hat$covB),digits = 2))$minP_pvalue
-    }
-    return(list(pa=pa,pb=pb,za=safe_z(pa)*ps$signAB$as,zb=safe_z(pb)*ps$signAB$bs))
-  },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
-  return(ppp(GS,mc,prec))
+GCN=function(S,M,Y,X,PS){
+  gVCT=VCT(S,M,Y,X)
+  if(is.na(PS$M_hat)){
+    fit.m=lm(M~S+.,data = X)
+    as=ifelse(sum(fit.m$coefficients["S",])>0,1,-1)
+    fit.y=glmnet::glmnet(cbind(M,S,X), Y)
+    bs=ifelse(sum(fit.y$beta[1:ncol(M),ncol(fit.y$beta)])>0,1,-1)
+    return(list(VCT=list(za=safe_z(gVCT$pa)*as,zb=safe_z(gVCT$pb)*bs),
+                TSQ=list(za=NA,zb=NA),
+                GBJ=list(za=NA,zb=NA),
+                GHC=list(za=NA,zb=NA),
+                mnP=list(za=NA,zb=NA)))
+  }
+  MA=round(cov2cor(PS$M_hat$covA),digits = 4)
+  MB=round(cov2cor(PS$M_hat$covB),digits = 4)
+  aTSQ=TSQ(PS$M_hat$a,MA)$pv
+  bTSQ=TSQ(PS$M_hat$b,MB)$pv
+  aGBJ=GBJ::GBJ(PS$M_hat$a,MA)$GBJ_pvalue
+  bGBJ=GBJ::GBJ(PS$M_hat$b,MB)$GBJ_pvalue
+  aGHC=GBJ::GHC(PS$M_hat$a,MA)$GHC_pvalue
+  bGHC=GBJ::GHC(PS$M_hat$b,MB)$GHC_pvalue
+  amnP=GBJ::minP(PS$M_hat$a,MA)$minP_pvalue
+  bmnP=GBJ::minP(PS$M_hat$b,MB)$minP_pvalue
+  return(list(VCT=list(za=safe_z(gVCT$pa)*PS$signAB$as,zb=safe_z(gVCT$pb)*PS$signAB$bs),
+              TSQ=list(za=safe_z(aTSQ)*PS$signAB$as,zb=safe_z(bTSQ)*PS$signAB$bs),
+              GBJ=list(za=safe_z(aGBJ)*PS$signAB$as,zb=safe_z(bGBJ)*PS$signAB$bs),
+              GHC=list(za=safe_z(aGHC)*PS$signAB$as,zb=safe_z(bGHC)*PS$signAB$bs),
+              mnP=list(za=safe_z(amnP)*PS$signAB$as,zb=safe_z(bmnP)*PS$signAB$bs)))
 }

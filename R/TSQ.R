@@ -1,5 +1,7 @@
+#' @export
 TSQ=function(Z,cm){
-  TS=t(Z)%*%solve(cm)%*%Z
-  pv=pchisq(TS,nrow(cm),lower.tail = F)
-  return(list(TS=TS,pv=pv))
+  TS=as.numeric(t(Z)%*%MASS::ginv(cm,tol=1e-8)%*%Z)
+  r=Matrix::rankMatrix(cm,tol=1e-8)[1]
+  pv=pchisq(TS,r,lower.tail = F)
+  return(list(TSQ=TS,pv=pv))
 }

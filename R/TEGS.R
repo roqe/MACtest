@@ -1,8 +1,9 @@
+#' @export
 TEGS<-function(
   Y1=NA, 			# p-by-n matrix containing expression values.
   X=NA, 			# n numeric values indicating two phenotypic status (0/1).
   type=2, 		# type of working covariance (1: independence; 2: unstructured; 3: estimated cov with factor analyses; 4: compound symmetry).
-  n.perm=200, 		# no. of permutation.
+  n.perm=100, 		# no. of permutation.
   factor.adaptive=TRUE, 	# for type=3 only; TRUE if using adaptive approach, FALSE otherwise.
   centered=FALSE,
   index=NA		# index for gene(s)
@@ -162,5 +163,7 @@ TEGS<-function(
   A$work2<-work2
   A$work<-work
   A$p<-c(p1, p2)
+  A$v.work=v.work
+  A$Q=Q
   return(A)
 }

@@ -1,46 +1,37 @@
+#' @export
 pre_fit=function(S,M,Y,X){
   if(anyNA(X)){
     print("warning: missing covariate data")
     X<-matrix(rep(1, length(S)))
   }
 
-  fit.m<-lm(M~X+S)
+  fit.m<-lm(M~S+.,data = X)
   if(all(Y %in% 0:1)){
-    fit.y<-glm(Y~X+S+M, family="binomial")
+    fit.y<-glm(Y~M+S+.,data = X, family="binomial")
   }else{
-    fit.y<-lm(Y~X+S+M)
+    fit.y<-lm(Y~M+S+.,data = X)
   }
-
   fit.m.sum<-summary(fit.m)
   fit.y.sum<-summary(fit.y)
-  lengX=0
-  for(x in 1:ncol(X)){
-    lengX=lengX+1
-    if(class(X[,x])=="factor"){
-      lengX=lengX+(length(levels(X[,x]))-2)
-    }
-  }
-  if(ncol(M)!=1){
-    A=sapply(fit.m.sum,function(fms){
-      a_hat<-fms$coefficients[lengX+2, 1]
-      a_sd<-fms$coefficients[lengX+2, 2]
-      return(c(a_hat,a_sd))
-    })
-    a.hat<-A[1,]
-    a.sd<-A[2,]
-  }else{
-    a.hat=fit.m.sum$coefficients[lengX+2, 1]
-    a.sd=fit.m.sum$coefficients[lengX+2, 2]
-  }
-  MPsvd<-svd(cov(fit.m$residuals))
-  indB=(lengX+3):(lengX+2+ncol(M))
+
+  A=sapply(fit.m.sum,function(fms){
+    a_hat<-fms$coefficients["S", 1]
+    a_sd<-fms$coefficients["S", 2]
+    return(c(a_hat,a_sd))
+  })
+  a.hat<-A[1,]
+  a.sd<-A[2,]
+  a=a.hat/a.sd
+  indA=nrow(fit.m$coefficients)*c(0:(ncol(M)-1))+2
+  covA=as.matrix(vcov(fit.m)[indA,indA])
+
+  indB=2:(1+ncol(M))
   b.hat<-fit.y.sum$coefficients[indB, 1]
   b.sd<-fit.y.sum$coefficients[indB, 2]
-  a=a.hat/a.sd
   b=b.hat/b.sd
-  indA=(lengX+2)*c(1:ncol(M))
-  covA=as.matrix(vcov(fit.m)[indA,indA])
   covB=as.matrix(vcov(fit.y)[indB,indB])
+
+  MPsvd<-svd(cov(fit.m$residuals))
   corrR=diag(ncol(M))
   for(p in 1:ncol(M)){
     for(q in 1:p){
