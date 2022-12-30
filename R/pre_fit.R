@@ -1,15 +1,15 @@
 #' @export
-pre_fit=function(S,M,Y,X){
-  if(anyNA(X)){
+pre_fit=function(S,M,Y,X=NULL){
+  if(is.null(X)){
     print("warning: missing covariate data")
-    X<-matrix(rep(1, length(S)))
+    X<-data.frame(rep(1, length(S)))
   }
 
   fit.m<-lm(M~S+.,data = X)
   if(all(Y %in% 0:1)){
     fit.y<-glm(Y~M+S+.,data = X, family="binomial")
   }else{
-    fit.y<-lm(Y~M+S+.,data = X)
+    fit.y<-glm(Y~M+S+.,data = X)
   }
   fit.m.sum<-summary(fit.m)
   fit.y.sum<-summary(fit.y)

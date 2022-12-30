@@ -1,3 +1,5 @@
+#' @import GBJ
+#' @import ACAT
 #' @export
 LCN=function(c,CP,MR,ii){
   Zcn=CP$Zcn[ii[c]:(ii[c+1]-1)]
@@ -12,5 +14,9 @@ LCN=function(c,CP,MR,ii){
               HCjs=GBJ::HC(Zjs,SS)$HC_pvalue,
               MPcn=GBJ::minP(Zcn,SS)$minP_pvalue,
               MPsb=GBJ::minP(Zsb,SS)$minP_pvalue,
-              MPjs=GBJ::minP(Zjs,SS)$minP_pvalue))
+              MPjs=GBJ::minP(Zjs,SS)$minP_pvalue,
+              ACcn=ACAT::ACAT(2*pnorm(abs(Zcn),lower.tail = F)),
+              ACsb=ACAT::ACAT(2*pnorm(abs(Zsb),lower.tail = F)),
+              ACjs=ACAT::ACAT(2*pnorm(abs(Zjs),lower.tail = F))
+              ))
 }

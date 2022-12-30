@@ -11,8 +11,8 @@
 #' @param num_covariates Number of covariates, default=2.
 #' @param SS The correlation matrix between mediators.
 #' @param har The percentage of mechanisms with signals within one experiment, default=0.1. (affect when hypo is not "H00")
-#' @param mm The mean of the signal, default=0.1. (affect when hypo is not "H00")
-#' @param vv The variance of the signal, default=0.1. (affect when hypo is not "H00")
+#' @param mm The mean of the signal, default=0. (affect when hypo is not "H00")
+#' @param vv The variance of the signal, default=0. (affect when hypo is not "H00")
 #' @param sm Number of mediators with signal within one mechanism, default=5. (affect when hypo is not "H00")
 #' @param mc Number of cores for parallel computing, default=5.
 #' @export
@@ -27,9 +27,10 @@
 #' H02_null=sim_mediation_data(hypo="H02",har=1,mm=0,vv=0.05,sm=2)
 #' HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
 
-sim_mediation_data=function(hypo="H00",sample_size=1000,num_mediators=30,num_mechanisms=10000,num_covariates=2,SS,har=0.1,mm=0.1,vv=0.1,sm=5,mc=5){
-  X=sapply(1:num_covariates,function(x){ return(rnorm(sample_size)) })
-  S=rnorm(sample_size)
+sim_mediation_data=function(hypo="H00",sample_size=1000,num_mediators=30,num_mechanisms=10000,num_covariates=2,SS=NULL,har=0.1,mm=0,vv=0,sm=5,mc=5,Styp="C"){
+  if(is.null(SS)){ SS=diag(num_mediators) }
+  X=sapply(1:num_covariates,function(x){ return(rnorm(sample_size,1)) })
+  if(Styp=="D"){ S=rbinom(sample_size,1,0.3) }else{ S=rnorm(sample_size,1) }
   mi=rep(num_mediators,num_mechanisms)
   D=parallel::mclapply(mi,function(m){
     if(runif(1)>har){ sm=0 }

@@ -10,12 +10,13 @@ sim_mediation_data(
   num_mediators = 30,
   num_mechanisms = 10000,
   num_covariates = 2,
-  SS,
+  SS = NULL,
   har = 0.1,
-  mm = 0.1,
-  vv = 0.1,
+  mm = 0,
+  vv = 0,
   sm = 5,
-  mc = 5
+  mc = 5,
+  Styp = "C"
 )
 }
 \arguments{
@@ -37,9 +38,9 @@ sim_mediation_data(
 
 \item{har}{The percentage of mechanisms with signals within one experiment, default=0.1. (affect when hypo is not "H00")}
 
-\item{mm}{The mean of the signal, default=0.1. (affect when hypo is not "H00")}
+\item{mm}{The mean of the signal, default=0. (affect when hypo is not "H00")}
 
-\item{vv}{The variance of the signal, default=0.1. (affect when hypo is not "H00")}
+\item{vv}{The variance of the signal, default=0. (affect when hypo is not "H00")}
 
 \item{sm}{Number of mediators with signal within one mechanism, default=5. (affect when hypo is not "H00")}
 
