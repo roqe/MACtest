@@ -1,5 +1,5 @@
 #' @export
-CompTest<-function(a, b, prec=1e-3,mc=5,rn=0,qcut=0.1){
+CompTest<-function(a, b, prec=1e-3,mc=5,rn=10,qcut=0.2){
   pp=zz=rep(NA,length(a))
   nx=(is.na(a)|is.na(b))
   a=a[!nx]

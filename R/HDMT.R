@@ -8,5 +8,7 @@ HDMT=function(a,b,exact=0){
   nullprop <- HDMT::null_estimation(ab)
   pnull <- HDMT::adjust_quantile(nullprop$alpha00,nullprop$alpha01,nullprop$alpha10,nullprop$alpha1,
                            nullprop$alpha2,ab,exact=0)
-  return(list(pmax=pmax,pnull=pnull))
+  jsfdr = HDMT::fdr_est(nullprop$alpha00,nullprop$alpha01,nullprop$alpha10,nullprop$alpha1,
+                        nullprop$alpha2,ab,exact=0)
+  return(list(pmax=pmax,pnull=pnull,jsfdr=jsfdr))
 }
