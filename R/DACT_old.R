@@ -1,6 +1,6 @@
 #' @import qvalue
 #' @export
-DACT=function(a,b){
+DACT_old=function(a,b){
   pa.ob <- pnorm(abs(a), lower.tail = F) * 2
   pb.ob <- pnorm(abs(b), lower.tail = F) * 2
   u3.ob <- pa.ob*I(pa.ob > pb.ob) + pb.ob*I(pa.ob <= pb.ob)

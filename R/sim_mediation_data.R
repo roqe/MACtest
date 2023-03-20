@@ -39,10 +39,11 @@ sim_mediation_data=function(hypo="H00",sample_size=1000,num_mediators=30,num_mec
     beta=pm$b
     M=sapply(1:m,function(x){ return(S*alpha[x]+apply(X,1,sum)) })+MASS::mvrnorm(n=sample_size,mu=rep(0,m),Sigma=SS)
     Y=apply(X,1,sum)+S+M%*%beta+rnorm(sample_size)
-    return(list(M=M,Y=Y))
+    return(list(M=M,Y=Y,pm=pm))
   }, mc.cores = mc, mc.set.seed = T)
   M=lapply(D,function(d){ return(d$M) })
   Y=lapply(D,function(d){ return(d$Y) })
   names(Y)=paste0("ensg_sim",1:length(Y))
-  return(list(S=S,M=M,Y=Y,X=X))
+  pm=lapply(D,function(d){ return(d$pm) })
+  return(list(S=S,M=M,Y=Y,X=X,pm=pm))
 }

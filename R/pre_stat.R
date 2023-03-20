@@ -1,7 +1,8 @@
 #' @export
 pre_stat=function(S,M,Y,X){
-  et=summary(lm(Y~.+S+M,data = X))
-  if(sum(is.na(et$coefficients[,"Std. Error"]))!=0){
+  et=lm(Y~.+S+M,data = X)
+  if(sum(is.na(et$coefficients))!=0|
+     sum(is.na(summary(et)$coefficients))!=0){
     return(list(M_hat=NA,P_hat=NA,signAB=NA))
   }else{
     M_hat=pre_fit(S, M, Y, X)

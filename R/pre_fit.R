@@ -25,7 +25,7 @@ pre_fit=function(S,M,Y,X=NULL){
   indA=nrow(fit.m$coefficients)*c(0:(ncol(M)-1))+2
   covA=as.matrix(vcov(fit.m)[indA,indA])
 
-  indB=2:(1+ncol(M))
+  indB=2:(ncol(M)+1)
   b.hat<-fit.y.sum$coefficients[indB, 1]
   b.sd<-fit.y.sum$coefficients[indB, 2]
   b=b.hat/b.sd
