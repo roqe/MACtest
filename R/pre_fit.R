@@ -38,11 +38,10 @@ pre_fit=function(S,M,Y,X=NULL){
       corrR[q,p]=corrR[p,q]=corrPQ(p,q,a.hat,a.sd,b.hat,b.sd,covA,covB)
     }
   }
-
   ca.svd<-svd(covA)
   a.sum<-sum(t(a.hat)%*%ca.svd$u%*%diag(1/sqrt(ca.svd$d),ncol=length(a.hat)))
   cb.svd<-svd(covB)
   b.sum<-sum(t(b.hat)%*%cb.svd$u%*%diag(1/sqrt(cb.svd$d),ncol=length(b.hat)))
 
-  return(list(a=a,b=b,R=corrR,covA=covA,covB=covB,MPsvd=MPsvd,as=ifelse(a.sum>0,1,-1),bs=ifelse(b.sum>0,1,-1)))
+  return(list(a=a,b=b,R=corrR,covA=covA,covB=covB,MPsvd=MPsvd,as=sign(a.sum),bs=sign(b.sum)))
 }

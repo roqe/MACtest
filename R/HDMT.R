@@ -10,5 +10,6 @@ HDMT=function(a,b,exact=0){
                            nullprop$alpha2,ab,exact=0)
   jsfdr = HDMT::fdr_est(nullprop$alpha00,nullprop$alpha01,nullprop$alpha10,nullprop$alpha1,
                         nullprop$alpha2,ab,exact=0)
+
   return(list(pmax=pmax,pnull=pnull,jsfdr=jsfdr))
 }

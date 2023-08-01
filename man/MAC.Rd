@@ -4,25 +4,27 @@
 \alias{MAC}
 \title{Run the main analysis.}
 \usage{
-MAC(HA, prec = 0.001, mc = 5, fdr = T, sig_cut = 0.1, la = "P")
+MAC(HA, multi = T, decor = T, hybrd = T, mc = 5, fdr = F, sig_cut = 0.1)
 }
 \arguments{
 \item{HA}{The dataset, can be obtained by running sim_mediation_data.}
 
-\item{prec}{The unit to construct empirical normal product pdf using in composite test, default=1e-3.}
+\item{multi}{Apply the multivariate approach or not, default=true.}
+
+\item{decor}{Apply the decorrelation approach or not, default=true.}
+
+\item{hybrd}{Apply the hybrid approach or not, default=true.}
 
 \item{mc}{Number of cores for parallel computing, default=5.}
 
-\item{fdr}{Apply FDR correction in the final result or not, default=true.}
+\item{fdr}{Apply FDR correction in the final result or not, default=false.}
 
 \item{sig_cut}{The significance level (alpha), default=0.1.}
-
-\item{la}{The decorrelation result, default="P".}
 }
 \description{
 Run the main analysis.
 }
 \examples{
 HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
-annoR=MAC(H00,mc=mc,prec)
+annoR=MAC(HA)
 }

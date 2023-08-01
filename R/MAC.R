@@ -1,11 +1,12 @@
 #' Run the main analysis.
 #'
 #' @param HA The dataset, can be obtained by running sim_mediation_data.
-#' @param prec The unit to construct empirical normal product pdf using in composite test, default=1e-3.
+#' @param multi Apply the multivariate approach or not, default=true.
+#' @param decor Apply the decorrelation approach or not, default=true.
+#' @param hybrd Apply the hybrid approach or not, default=true.
 #' @param mc Number of cores for parallel computing, default=5.
-#' @param fdr Apply FDR correction in the final result or not, default=true.
+#' @param fdr Apply FDR correction in the final result or not, default=false.
 #' @param sig_cut The significance level (alpha), default=0.1.
-#' @param la The decorrelation result, default="P".
 #' @importFrom parallel mclapply
 #' @import GBJ
 #' @import ACAT
@@ -13,69 +14,25 @@
 #' @export
 #' @examples
 #' HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
-#' annoR=MAC(H00,mc=mc,prec)
+#' annoR=MAC(HA)
 
-MAC=function(HA,prec=1e-3,mc=5,fdr=T,sig_cut=0.1,la="P"){
+MAC=function(HA,multi=T,decor=T,hybrd=T,mc=5,fdr=F,sig_cut=0.1){
   # pre-fitting
   # t1=Sys.time()
   PS=parallel::mclapply(1:length(HA$Y),function(c){
-    return(pre_stat(HA$S,as.matrix(HA$M[[c]]),HA$Y[[c]],as.data.frame(HA$X)))
+    return(pre_stat(HA$S,as.matrix(HA$M[[c]]),HA$Y[[c]],as.data.frame(HA$X),eiR = 1))
   },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
   # PS=foreach::foreach(c=1:length(HA$Y)) %dopar% { pre_stat(HA$S,HA$M[[c]],HA$Y[[c]],HA$X) }
   # print(Sys.time()-t1)
-  # global approach
-  GS=parallel::mclapply(1:length(HA$Y),function(c){
-    return(GCN(HA$S,as.matrix(HA$M[[c]]),HA$Y[[c]],as.data.frame(HA$X),PS[[c]]))
-  },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
-  # GS=foreach::foreach(c=1:length(HA$Y)) %dopar% { GCN(HA$S,HA$M[[c]],HA$Y[[c]],HA$X,PS[[c]]) }
-  Q=lapply(GS,function(gs){ return(data.table::rbindlist(gs,idcol = "app")) })
-  GQ=data.table::rbindlist(Q,idcol = "ensg")
-  GP=lapply(split(GQ,GQ$app),ppp,mode = "p",prec,mc)
-  GQ=cbind(ensg=names(HA$Y),GP$VCT[,c("Pcn","Psb","Pjs")],GP$TSQ[,c("Pcn","Psb","Pjs")],GP$GBJ[,c("Pcn","Psb","Pjs")],
-           GP$GHC[,c("Pcn","Psb","Pjs")],GP$mnP[,c("Pcn","Psb","Pjs")],GP$ACAT[,c("Pcn","Psb","Pjs")])
-  names(GQ)=c("ensg",paste0("VCT",c("mc","ms","mj")),paste0("TSQ",c("mc","ms","mj")),paste0("GBJ",c("mc","ms","mj")),
-              paste0("GHC",c("mc","ms","mj")),paste0("minP",c("mc","ms","mj")),paste0("ACAT",c("mc","ms","mj")))
 
-  # t1=Sys.time()
-  # local approach, decorrelation
-  MAp=lapply(PS, function(r){ if(all(is.na(r$P_hat))) return(NA); return(r$P_hat$a) })
-  MBp=lapply(PS, function(r){ if(all(is.na(r$P_hat))) return(NA); return(r$P_hat$b) })
-  CPp=ppp(list(za=unlist(MAp),zb=unlist(MBp)),mode = "z",prec,mc=mc)
-  ii=Reduce(sum,c(1,sapply(MAp,length)),accumulate = T)
-  CSp=parallel::mclapply(1:length(HA$Y),function(c){
-    if(is.na(PS[[c]]$P_hat)) return(NULL); return(LCN(c,CPp,PS[[c]]$P_hat$R,ii))
-  },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
-  # CSp=foreach::foreach(c=1:length(HA$Y)) %dopar% { LCN(c,CPp,PS[[c]]$P_hat$R,ii) }
-  names(CSp)=names(HA$Y)
-  LQp=data.table::rbindlist(CSp,idcol = "ensg")
-  names(LQp)=c("ensg",paste0("BJ",c("pc","ps","pj")),paste0("HC",c("pc","ps","pj")),paste0("MP",c("pc","ps","pj")),paste0("AC",c("pc","ps","pj")))
+  if(multi){ MR=multiAPP(HA,PS,mc) }
+  if(decor){ DR=decorAPP(HA,PS,mc) }
+  QQ=merge(MR,DR,by = "ensg",all = T)
 
-  # local approach, skip decorrelation
-  MAm=lapply(PS, function(r){ if(all(is.na(r$M_hat))) return(NA); return(r$M_hat$a) })
-  MBm=lapply(PS, function(r){ if(all(is.na(r$M_hat))) return(NA); return(r$M_hat$b) })
-  CPm=ppp(list(za=unlist(MAm),zb=unlist(MBm)),mode = "z",prec,mc=mc)
-  ii=Reduce(sum,c(1,sapply(MAm,length)),accumulate = T)
-  CSm=parallel::mclapply(1:length(HA$Y),function(c){
-    if(is.na(PS[[c]]$M_hat)) return(NULL); return(LCN(c,CPm,PS[[c]]$M_hat$R,ii))
-  },mc.cores = mc,mc.preschedule = T,mc.cleanup = T)
-  # CSm=foreach::foreach(c=1:length(HA$Y)) %dopar% { LCN(c,CPm,PS[[c]]$M_hat$R,ii) }
-  names(CSm)=names(HA$Y)
-  LQm=data.table::rbindlist(CSm,idcol = "ensg")
-  names(LQm)=c("ensg",paste0("BJ",c("mc","ms","mj")),paste0("HC",c("mc","ms","mj")),paste0("MP",c("mc","ms","mj")),paste0("AC",c("mc","ms","mj")))
-  # print(Sys.time()-t1)
+  if(fdr){ QQ=cbind(ensg=QQ$ensg,data.table(apply(QQ[,2:ncol(QQ)],2,p.adjust,method="fdr"))) }
+  QQ$decorSig=ifelse(QQ$BJpc<sig_cut|QQ$HCpc<sig_cut|QQ$MPpc<sig_cut|QQ$ACpc<sig_cut,1,0)
+  QQ$multiSig=ifelse(QQ$VCTmc<sig_cut|QQ$TSQmc<sig_cut|QQ$GBJmc<sig_cut|QQ$GHCmc<sig_cut|QQ$minPmc<sig_cut|QQ$ACATmc<sig_cut,2,0)
+  QQ$anno=factor(QQ$decorSig+QQ$multiSig,levels = 0:3,labels = c("insignificant","consistent","diverse","mixed"))
 
-  # combine and annotate
-  QQ=merge(merge(LQm,LQp,by = "ensg"),GQ,by = "ensg",all = T)
-
-  if(fdr){ QQ=cbind(ensg=QQ$ensg,data.table(apply(QQ[,2:43],2,p.adjust,method="fdr"))) }
-  if(la=="P"){
-    QQ$localSig=ifelse(QQ$BJpc<sig_cut|QQ$HCpc<sig_cut|QQ$MPpc<sig_cut|QQ$ACpc<sig_cut,1,0)
-  }else{
-    QQ$localSig=ifelse(QQ$BJmc<sig_cut|QQ$HCmc<sig_cut|QQ$MPmc<sig_cut|QQ$ACmc<sig_cut,1,0)
-  }
-  QQ$globalSig=ifelse(QQ$VCTmc<sig_cut|QQ$TSQmc<sig_cut|QQ$GBJmc<sig_cut|QQ$GHCmc<sig_cut|QQ$minPmc<sig_cut|QQ$ACATmc<sig_cut,2,0)
-  QQ$anno=factor(QQ$localSig+QQ$globalSig,levels = 0:3,labels = c("insignificant","consistent","diverse","mixed"))
-
-  #return(QQ)
-  return(list(PS=PS,GP=GP,CSm=CSm,CSp=CSp,PV=QQ))
+  return(list(MR=MR,DR=DR,PV=QQ))
 }
