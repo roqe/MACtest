@@ -5,7 +5,7 @@
 #'             "G0B" refers to the null hypothese with only beta-signals;
 #'             "H02" refers to the cases with disjoint signals, if rho=0 then it is a null, otherwise alternative;
 #'             "HA" refer to the alternative hypothesis with connected signals.
-#' @param sample_size Number of samples, default=1000.
+#' @param sample_size Number of samples, default=500.
 #' @param num_mediators Number of mediators, default=30.
 #' @param num_mechanisms Number of mechanisms, default=10000.
 #' @param num_covariates Number of covariates, default=2.
@@ -27,7 +27,7 @@
 #' H02_null=sim_mediation_data(hypo="H02",har=1,mm=0,vv=0.05,sm=2)
 #' HA=sim_mediation_data(hypo="HA",mm=0.1,vv=0.1,sm=10)
 
-sim_mediation_data=function(hypo="H00",sample_size=1000,num_mediators=30,num_mechanisms=10000,num_covariates=2,SS=NULL,har=0.1,mm=0,vv=0,sm=5,mc=5,Styp="C"){
+sim_mediation_data=function(hypo="H00",sample_size=500,num_mediators=30,num_mechanisms=10000,num_covariates=2,SS=NULL,har=0.1,mm=0,vv=0,sm=5,mc=5,Styp="C"){
   if(is.null(SS)){ SS=diag(num_mediators) }
   X=sapply(1:num_covariates,function(x){ return(rnorm(sample_size,1)) })
   if(Styp=="D"){ S=rbinom(sample_size,1,0.3) }else{ S=rnorm(sample_size,1) }
